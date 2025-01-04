@@ -3,7 +3,7 @@ const slugify = require('slugify');
 const createDomPurify = require('dompurify');
 const { JSDOM } = require('jsdom');
 const dompurify = createDomPurify(new JSDOM().window);
-const marked = require('marked');
+const { marked } = require('marked');
 
 const articleSchema = new mongoose.Schema({
   title: {
@@ -24,15 +24,16 @@ const articleSchema = new mongoose.Schema({
     unique: true,
   },
   contentHtml: {
-    type: String, 
+    type: String,
     required: true,
   },
 }, {
-  timestamps: true, 
+  timestamps: true,
 });
 
 // Pre-save hook to generate the slug and convert markdown to sanitized HTML
-articleSchema.pre('save', function (next) {
+articleSchema.pre('validate', function (next) {
+  console.log('Pre Save Hook : ', this)
   // Generate slug from title
   if (this.title) {
     this.slug = slugify(this.title, { lower: true, strict: true });
@@ -41,7 +42,7 @@ articleSchema.pre('save', function (next) {
   // Convert markdown to HTML
   if (this.markdown) {
     const rawHtml = marked(this.markdown);
-    
+
     // Sanitize the HTML content to prevent XSS attacks
     this.contentHtml = dompurify.sanitize(rawHtml);
   }

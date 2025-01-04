@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const Article = require('../models/article');
 
-// GET: Display list of articles
+// GET: Display all articles
 router.get('/', async (req, res) => {
     try {
-        const articles = await Article.find().sort({ createdAt: 'desc' }); // Fetch all articles from the database
-        res.render('articles/home', { articles: articles });
+        const articles = await Article.find().sort({createdAt : -1});
+        res.render('articles/home', { articles });
     } catch (error) {
         console.log('Error fetching articles:', error);
         res.status(500).send('Error fetching articles');
@@ -15,84 +15,88 @@ router.get('/', async (req, res) => {
 
 // GET: Display new article form
 router.get('/new', (req, res) => {
-    res.render('articles/new', { article: new Article() });
+    try {
+        res.render('articles/new', { article: new Article() });
+    } catch (error) {
+        console.log('Error rendering new article form:', error);
+        res.status(500).send('Error rendering new article form');
+    }
 });
 
 router.get('/edit/:id', async (req, res) => {
     const article = await Article.findById(req.params.id)
-    res.render('articles/edit', { article: article });
-});
-
-router.put('/:id', async (req, res) => {
-    let article = new Article({
-        title: req.body.title,
-        description: req.body.description,
-        markdown: req.body.markdown
-    });
-
-    try {
-        await article.save(); // Save the article to the database
-        res.redirect(`/articles/${article.slug}`); // Redirect to the new article's page
-    } catch (error) {
-        console.log('Error while saving article:', error);
-        res.render('articles/new', { article: article }); // Re-render the new article form with the current data
-    }
+    res.render('articles/edit', { article: article })
 })
 
-// GET: Display single article by ID
+// GET: Display single article by slug
 router.get('/:slug', async (req, res) => {
     try {
-        const article = await Article.findOne({ slug: req.params.slug }); // Find article by ID
-        if (!article) {
-            return res.status(404).send('Article not found');
+        const article = await Article.findOne({ slug: req.params.slug }); // Find article by slug
+        if (article == null) {
+            return res.status(404).redirect('/'); // Redirect to articles list if not found
         }
         res.render('articles/show', { article: article });
     } catch (error) {
-        console.log('Error fetching article by ID:', error);
+        console.log('Error fetching article by slug:', error);
         res.status(500).send('Error fetching article');
     }
 });
 
 // POST: Create a new article
-router.post('/', async (req, res,next) => {
-   req.article=new Article()
-   next()
-},saveArticleAndRedirect('new'));
+router.post('/', async (req, res, next) => {
+    try {
+        req.article = new Article();
+        next();
+    } catch (error) {
+        console.log('Error initializing new article:', error);
+        res.status(500).send('Error initializing new article');
+    }
+}, saveArticleAndRedirect('new'));
 
-// DELETE : Delete single article by ID
+// PUT: Update an article
+router.put('/:id', async (req, res, next) => {
+    try {
+        req.article = await Article.findById(req.params.id);
+        if (!req.article) {
+            return res.status(404).send('Article not found');
+        }
+        next();
+    } catch (error) {
+        console.log('Error fetching article for update:', error);
+        res.status(500).send('Error fetching article for update');
+    }
+}, saveArticleAndRedirect('edit'));
+
+// DELETE: Delete a single article by ID
 router.delete('/:id', async (req, res) => {
     try {
         const article = await Article.findByIdAndDelete(req.params.id);
         if (!article) {
-            return res.status(404).send('Article not found');
+            return res.status(404).send('Article not found from delete route');
         }
-        res.redirect('/articles'); // Redirect after deleting
+        res.redirect('/articles'); // Redirect to the articles list after deleting
     } catch (error) {
         console.log('Error deleting article:', error);
         res.status(500).send('Error deleting article');
     }
 });
 
-
+// Save article and redirect
 function saveArticleAndRedirect(path) {
     return async (req, res) => {
-        let article = req.article
-        article.title = req.body.title
-        article.description = req.body.description
-        article.markdown = req.body.markdown
-
+        let article = req.article;
+        article.title = req.body.title;
+        article.description = req.body.description;
+        article.markdown = req.body.markdown;
 
         try {
-            await article.save(); // Save the article to the database
-            res.redirect(`/articles/${article.slug}`); // Redirect to the new article's page
+            article = await article.save(); // Save the article to the database
+            res.redirect(`/articles/${article.slug}`); // Redirect to the article's show page
         } catch (error) {
             console.log('Error while saving article:', error);
-            res.render(`articles/${path}`, { article: article }); // Re-render the new article form with the current data
+            res.render(`articles/${path}`, { article: article }); // Re-render the form with current data
         }
-    }
+    };
 }
 
 module.exports = router;
-
-
-// method-over-ride -> a library that within a form allows us to use other methods except for get/post
